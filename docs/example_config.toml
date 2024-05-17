@@ -18,7 +18,7 @@ early_stop = 20
 lifetime = 3600 
 
 recursive = true
-recursive_depth = 3
+recursive_depth = 5
 recursive_sync = false
 
 ignore_binary = true
