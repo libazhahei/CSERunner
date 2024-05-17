@@ -1,6 +1,3 @@
-
-debug = false 
-
 [server]
 host = "loginv2.cse.unsw.edu.au"
 port = 22
@@ -11,26 +8,27 @@ username = "z1234567"
 identity_file = "~/.ssh/id_rsa"
 password = "12345678"
 
-[sync_local]
+[sync]
 # It can be either eager or lazy
 # If eager was specified, sync files every 5 second,
 # If lazy was specified, sync file if and only if execute command via cserun
 sync_type = "eager"
 frequency = 5
+early_stop = 20
+lifetime = 3600 
 
 recursive = true
 recursive_depth = 3
 recursive_sync = false
 
-ignore_files = ["*.py"]
+ignore_binary = true
+ignore = ["*.py", "target"]
 extra_ignore_file = [".gitignore"] 
 
 n_threads = -1
 rm_alart = true
 timeout = 30 
 
-[sync_remote]
-sync_space_path = "~/.cserunn"
 max_node = 3
 max_sync_space_size = 1024
 max_sync_space_unit = "MB"
