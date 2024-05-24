@@ -1,8 +1,10 @@
-use std::{borrow::Cow, fs, io};
-
-use serde::Deserialize;
-
-#[derive(Deserialize, Debug)]
+mod errors;
+mod init;
+use std::{borrow::Cow, error::Error, fs, io, rc::Rc};
+use init::init_workspace;
+use serde::{Deserialize, Serialize};
+use clap::{Args, Parser};
+#[derive(Serialize, Deserialize, Debug)]
 pub struct ServerConfig<'a> {
     #[serde(borrow="'a")]
     host: Cow<'a, str>,
@@ -11,7 +13,7 @@ pub struct ServerConfig<'a> {
     username: Cow<'a, str>
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct AuthConfig<'a> {
     #[serde(borrow="'a")]
     identity_file: Cow<'a, str>,
@@ -19,14 +21,14 @@ pub struct AuthConfig<'a> {
     password: Cow<'a, str>
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum SyncType {
     #[serde(alias="eager", alias="EAGER")]
     Eager,
     #[serde(alias="lazy", alias="LAZY")]
     Lazy
 }
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct SyncConfig<'a> {
     sync_type: SyncType,
     frequency: u8,
@@ -43,7 +45,6 @@ pub struct SyncConfig<'a> {
     rm_alart: bool,
     timeout: u16,
 
-    max_node: u8,
     max_sync_space_size: u32,
     #[serde(borrow="'a")]
     max_sync_space_unit: Cow<'a, str>,
@@ -51,9 +52,9 @@ pub struct SyncConfig<'a> {
     compress_while_sync: bool
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Config<'a> {
-    root: Cow<'a, str>,
+    root: Option<Cow<'a, str>>,
     #[serde(borrow="'a")]
     server: ServerConfig<'a>,
     #[serde(borrow="'a")]
@@ -62,13 +63,30 @@ pub struct Config<'a> {
     sync: SyncConfig<'a>
 }
 
+#[derive(Parser)]
+#[command(version, about, long_about = None)]
+pub struct CommandLine {
+    command: String,
+    args: Option<Vec<String>>,
+    #[arg(short, long)]
+    config: Option<String>,
+}
+
+
 
 fn main() {
+    let commandline = Rc::new(CommandLine::parse());
+    match commandline.clone().command.as_str() {
+        "init" => init_workspace(&commandline.config),
+        _ => todo!()
+    };
+    // let current = std::env::current_dir().unwrap();
+    // println!("{:?}", current.to_str().take());
     // let config_file = std::fs::read_to_string("./example_config.toml");
-    let file = fs::File::open("./example_config.json").expect("config file does not exist");
-    let reader = io::BufReader::new(file);
-    let mut deser = serde_json::Deserializer::from_reader(reader);
-    let config = Config::deserialize(&mut deser).expect("Unexpected data format");
-    dbg!(config);
-    println!("Hello, world!");
+    // let file = fs::File::open("./example_config.json").expect("config file does not exist");
+    // let reader = io::BufReader::new(file);
+    // let mut deser = serde_json::Deserializer::from_reader(reader);
+    // let config = Config::deserialize(&mut deser).expect("Unexpected data format");
+    // dbg!(config);
+    // println!("Hello, world!");
 }

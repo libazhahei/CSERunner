@@ -1,5 +1,4 @@
 {
-    "root" : "",
     "server": {
         "host": "loginv2.cse.unsw.edu.au",
         "port": 22,
@@ -13,14 +12,13 @@
         "sync_type": "eager",
         "frequency": 5,
         "early_stop": 20,
-        "lifetime": 3600,
+        "lifetime": 600,
         "ignore_binary": true,
         "ignore": ["*.py", "target"],
         "extra_ignore_file": [".gitignore"],
         "n_threads": -1,
         "rm_alart": true,
         "timeout": 30,
-        "max_node": 3,
         "max_sync_space_size": 1024,
         "max_sync_space_unit": "MB",
         "compress_while_sync": true
