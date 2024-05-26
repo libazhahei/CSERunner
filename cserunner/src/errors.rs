@@ -64,3 +64,24 @@ impl Error for UnexpectedConfigFile {
 
 }
 
+
+#[derive(Debug)]
+pub struct WorkspaceAlreadyExists {
+    root: String
+}
+impl WorkspaceAlreadyExists {
+    pub fn new(root: String) -> Self {
+        Self {
+            root
+        }
+    }
+    
+}
+impl Display for WorkspaceAlreadyExists {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Error: the directory at {} already exists. You are not allow to init agagin", self.root)
+    }
+}
+impl Error for WorkspaceAlreadyExists  {
+    
+}

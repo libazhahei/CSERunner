@@ -76,10 +76,10 @@ pub struct CommandLine {
 
 fn main() {
     let commandline = Rc::new(CommandLine::parse());
-    match commandline.clone().command.as_str() {
-        "init" => init_workspace(&commandline.config),
-        _ => todo!()
-    };
+    // match commandline.clone().command.as_str() {
+    //     "init" => init_workspace(&commandline.config),
+    //     _ => todo!()
+    // };
     // let current = std::env::current_dir().unwrap();
     // println!("{:?}", current.to_str().take());
     // let config_file = std::fs::read_to_string("./example_config.toml");
