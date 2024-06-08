@@ -1,6 +1,8 @@
 mod errors;
 mod init;
+mod check;
 use std::{borrow::Cow, env, error::Error, fs, io, rc::Rc};
+use check::{config_file_check, root_dir_check};
 use init::{get_workspace_config, init_workspace};
 use serde::{Deserialize, Serialize};
 use clap::{Args, Parser};
@@ -116,6 +118,10 @@ pub struct CommandLine {
 
 
 fn main() {
+    // Checking 
+    root_dir_check().unwrap();
+    config_file_check().unwrap();
+
     let commandline = Rc::new(CommandLine::parse());
     // if commandline is init 
     if commandline.command == "init" {

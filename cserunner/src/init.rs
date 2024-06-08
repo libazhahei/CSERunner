@@ -1,27 +1,27 @@
 use core::time;
-use std::borrow::Borrow;
 use std::collections::HashMap;
-use std::fs::File;
+use std::fs::{self, File};
 use std::path::PathBuf;
 use std::thread::sleep;
-use std::{fs};
 use std::{borrow::Cow, error::Error, io};
-
-use homedir::{get_home, get_my_home};
 use rand::distributions::DistString;
 use serde::{Deserialize, Serialize};
 use rand::distributions::Alphanumeric;
+use crate::check::{get_root_dir, get_workspace_list_lock_path, get_workspace_list_path};
 
 #[derive(Debug, Serialize, Deserialize)]
-struct WorkspaceList<'a> {
+pub struct WorkspaceList<'a> {
     workspace_mapping: HashMap<Cow<'a, str>, Cow<'a, str>>,
-    workspace_counter: u32,
 }
 
-enum WorkSpaceStatus {
-    Exist(String),
-    New(String),
+impl WorkspaceList<'_> {
+    pub fn new() -> WorkspaceList<'static> {
+        WorkspaceList {
+            workspace_mapping: HashMap::new(),
+        }
+    }
 }
+
 
 use crate::{errors, AuthConfig, Config, ServerConfig, SyncConfig, SyncType};
 /// Returns a Config struct with default configuration values.
@@ -57,7 +57,7 @@ fn default_config() -> Config<'static> {
         }
     }
 }
-/// Adds a workspace to the workspace list.
+
 /// This function is use to add a workspace to the workspace list.
 /// It takes the workspace name and the workspace directory as arguments.
 /// The workspace name is used as the key in the workspace list, while the workspace directory is the value.
@@ -68,67 +68,45 @@ fn default_config() -> Config<'static> {
 /// The function then reads the workspace list file and deserializes it into a WorkspaceList object.
 /// each time will will wait for 33 microseconds before checking if the lock file is removed
 fn add_workspace_to_list(workspace: &str, workspace_dir: &str) -> Result<(), Box<dyn Error>> {
-    let cserunner_dir = to_cserunner_dir()?;
+    // Waiting for the lock file is removed (waiting for unlocking) 
+    let lock_path = get_workspace_list_lock_path()?;
     sleep(time::Duration::from_micros(33));
-    while (cserunner_dir.join("workspace_list.json.lock").exists()) {
+    while lock_path.exists() {
         sleep(time::Duration::from_micros(30));
     }
-    File::create(cserunner_dir.join("workspace_list.json.lock")).expect("Lock file creation failed");
-    let file = fs::File::open(cserunner_dir.join("workspace_list.json"))?;
+    // Lock the file 
+    File::create(lock_path.clone()).expect("Lock file creation failed");
+
+    // Add the workspace and workspace_dir pait into the workspace list file 
+    let workspace_file_path = get_workspace_list_path()?;
+    let file = fs::File::open(workspace_file_path.clone())?;
     let reader = io::BufReader::new(file);
-    let mut deser: serde_json::Deserializer<serde_json::de::IoRead<io::BufReader<File>>> = serde_json::Deserializer::from_reader(reader);
+    let mut deser = serde_json::Deserializer::from_reader(reader);
     let mut list = WorkspaceList::deserialize(&mut deser).map_err(errors::UnexpectedConfigFile::from)?; // expect("Unexpected data format"
     list.workspace_mapping.insert(Cow::Owned(workspace.to_string()), Cow::Owned(workspace_dir.to_string()));
-    list.workspace_counter += 1;
-    serde_json::to_writer(fs::File::create(cserunner_dir.join("workspace_list.json"))?, &list)?;
-    std::fs::remove_file(cserunner_dir.join("workspace_list.json.lock"));
+    serde_json::to_writer(fs::File::create(workspace_file_path)?, &list)?;
+    
+    // Unlock the file 
+    std::fs::remove_file(lock_path)?;
     Ok(())
 }
 
-/// Prompts the user to confirm the root directory.
 /// This function prompts the user to confirm the root directory.
-/// It takes the root directory as an argument and returns a WorkSpaceStatus enum.
-/// The WorkSpaceStatus enum has two variants: Exist and New.
-/// The Exist variant is used when the root directory already exists. (It never happens in this function btw)
-/// The New variant is used when the root directory does not exist.
-fn ask_confirm_new_root_dir(root: String) -> Result<WorkSpaceStatus, Box<dyn Error>> {
-    let mut confirmed_root = root;
+fn ask_confirm_new_root_dir(root: &str) -> Result<bool, Box<dyn Error>> {
+    let mut buffer = String::new();
+    println!("The root directory is set to '{}'. Is this correct? [Y/N]", root);
     loop {
-        println!("The root directory is set to '{}'. Is this correct? [Y/n]", confirmed_root);
-        let mut input = String::new();
-        io::stdin().read_line(&mut input)?;
-        if input.trim().to_lowercase() == "n" {
-            println!("Please enter the correct root directory: ");
-            input.clear();
-            io::stdin().read_line(&mut input)?;
-            confirmed_root = input.trim().to_string();
-            if !fs::metadata(&confirmed_root)?.is_dir() {
-                println!("Invalid directory. Please enter a valid directory.");
-                continue;
+        io::stdin().read_line(&mut buffer)?;
+        match buffer.trim().to_lowercase().as_str() {
+            "y" => return Ok(true),
+            "" => return Ok(true),
+            "n" => return Ok(false),
+            _ => {
+                println!("Invalid input. Please enter 'y' or 'n'.");
+                buffer.clear();
             }
-        } else if input.trim().to_lowercase() == "y" || input.trim().is_empty() {
-            break;
-        } else {
-            println!("Invalid input. Please enter 'y' or 'n'.");
         }
     }
-    Ok(WorkSpaceStatus::New((confirmed_root)))
-}
-
-/// Returns the path to the cserunner directory.
-/// This function returns the path to the cserunner directory.
-pub fn to_cserunner_dir() -> Result<PathBuf, Box<dyn Error>>{
-    let homedir = get_my_home().expect("Cannot get home directory").unwrap_or(PathBuf::from("~"));
-    let cserunner_dir = homedir.join(".cserunner");
-    if !cserunner_dir.exists() {
-        fs::create_dir(&cserunner_dir)?;
-        let list = WorkspaceList {
-            workspace_mapping: HashMap::new(),
-            workspace_counter: 0
-        };
-        serde_json::to_writer(fs::File::create(cserunner_dir.join("workspace_list.json"))?, &list)?;
-    }
-    Ok(cserunner_dir)
 }
 
 /// Returns the workspace configuration even you are in a subdirectory of one of the node.
@@ -136,15 +114,15 @@ pub fn to_cserunner_dir() -> Result<PathBuf, Box<dyn Error>>{
 /// It takes the current path as an argument and returns a Result object with a Config object as the success value.
 /// If an error occurs, the function returns a Box<dyn Error> object.
 pub fn get_workspace_config(current_path: &PathBuf) -> Result<Config, Box<dyn Error>> {
-    let cserunner_dir = to_cserunner_dir()?;
-    let file = fs::File::open(cserunner_dir.join("workspace_list.json"))?;
+    let file = fs::File::open(get_workspace_list_path()?)?;
     let reader = io::BufReader::new(file);
     let mut deser: serde_json::Deserializer<serde_json::de::IoRead<io::BufReader<File>>> = serde_json::Deserializer::from_reader(reader);
-    let mut list = WorkspaceList::deserialize(&mut deser).map_err(errors::UnexpectedConfigFile::from)?; // expect("Unexpected data format"
+    let list = WorkspaceList::deserialize(&mut deser).map_err(errors::UnexpectedConfigFile::from)?; // expect("Unexpected data format"
+
     // use value as a regex to match if the current path is a workspace
     if let Some(workspace) = list.workspace_mapping.iter().find(|(_, value)| current_path.starts_with(value.as_ref())) {
         let workspace_dir = workspace.1.as_ref();
-        let file = fs::File::open(cserunner_dir.join(workspace_dir).join("config.json"))?;
+        let file = fs::File::open(get_root_dir()?.join(workspace_dir).join("config.json"))?;
         let reader = io::BufReader::new(file);
         let mut deser = serde_json::Deserializer::from_reader(reader);
         let config = Config::deserialize(&mut deser).map_err(errors::UnexpectedConfigFile::from)?; // expect("Unexpected data format"
@@ -155,15 +133,14 @@ pub fn get_workspace_config(current_path: &PathBuf) -> Result<Config, Box<dyn Er
     }
 } 
 
-
-/// Checks if the root directory already exists.
 /// This function checks if the root directory already exists.
 /// It takes the root directory as an argument and returns a Result object with the root directory as the success value.
 /// If the root directory already exists, the function returns an error.
-/// If the root directory does not exist, the function prompts the user to confirm the root directory.
-fn check_root_dir(root: &str) -> Result<String, Box<dyn Error>> {
-    let cserunner_dir = to_cserunner_dir()?;
-    let file = fs::File::open(cserunner_dir.join("workspace_list.json"))?;
+/// If the root directory does not exist, the function will check if the root is a vliad diectory. 
+/// If the root is a valid directory, prompts the user to confirm the root directory. 
+/// Otherwise, return an error. 
+fn check_workspace_is_valid(root: &str) -> Result<bool, Box<dyn Error>> {
+    let file = fs::File::open(get_workspace_list_path()?)?;
     let reader = io::BufReader::new(file);
     let mut deser = serde_json::Deserializer::from_reader(reader);
     let list = WorkspaceList::deserialize(&mut deser).map_err(errors::UnexpectedConfigFile::from)?; // expect("Unexpected data format"
@@ -171,9 +148,13 @@ fn check_root_dir(root: &str) -> Result<String, Box<dyn Error>> {
         println!("Workspace already exists at '{}', please revisit config at {}", root, list.workspace_mapping.get(root).unwrap());
         return Err(Box::new(errors::WorkspaceAlreadyExists::new(root.to_string())));
     } else {
-        ask_confirm_new_root_dir(root.to_string())?;
+        if !fs::metadata(root)?.is_dir() {
+            println!("Invalid directory. Please enter a valid directory.");
+            return Err(Box::new(errors::ConfigError::InvalidDirectory(root.to_string())));
+        }
+        ask_confirm_new_root_dir(root)?;
     }
-    todo!()
+    Ok(true)
 }
 
 /// Initializes a new workspace.
@@ -185,16 +166,15 @@ fn check_root_dir(root: &str) -> Result<String, Box<dyn Error>> {
 /// The function also adds the workspace to the workspace list.
 /// The function prints a success message after the workspace is initialized.
 /// If an error occurs, the function returns a Box<dyn Error> object.
-pub fn init_workspace(config: &Option<String>) -> Result<(), Box<dyn Error>> {
-    let cserunner_dir = to_cserunner_dir()?;
-    let config = if let Some(config_file_path) = config {
+pub fn init_workspace(config_path: &Option<String>) -> Result<(), Box<dyn Error>> {
+    let config = if let Some(config_file_path) = config_path {
         let file = fs::File::open(config_file_path).map_err(errors::FileDoesNotExist::from)?; // expect("config file does not exist"
         let reader = io::BufReader::new(file);
         let mut deser = serde_json::Deserializer::from_reader(reader);
         let config = Config::deserialize(&mut deser).map_err(errors::UnexpectedConfigFile::from)?; // expect("Unexpected data format"
         if config.root.is_none() {
             let root = std::env::current_dir()?.as_os_str().to_str().unwrap_or("").to_string();
-            let root = check_root_dir(&root)?;
+            check_workspace_is_valid(&root)?;
             let config = Config {
                 root: Some(Cow::Owned(root)),
                 ..config
@@ -205,7 +185,7 @@ pub fn init_workspace(config: &Option<String>) -> Result<(), Box<dyn Error>> {
         }
     } else {
         let root = std::env::current_dir()?.as_os_str().to_str().unwrap_or("").to_string();
-        let root = check_root_dir(&root)?;
+        check_workspace_is_valid(&root)?;
         let config = default_config();
         let config = Config {
             root: Some(Cow::Owned(root)),
@@ -213,6 +193,8 @@ pub fn init_workspace(config: &Option<String>) -> Result<(), Box<dyn Error>> {
         };
         config
     };
+
+    let cserunner_dir = get_root_dir()?;
     let name = format!("workspace_{}", Alphanumeric.sample_string(&mut rand::thread_rng(), 16));
     let workspace_dir = cserunner_dir.join(&name);
     fs::create_dir(&workspace_dir)?;

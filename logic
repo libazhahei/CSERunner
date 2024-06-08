@@ -1,0 +1,10 @@
+./cserunner
+    1. Check if folder "~/.cserunner" exists 
+        1.1 If not exists, create folder 
+    2. Check if config file "~/.cserunner/workspace_list.json" exists 
+        2.1 If not exists, create "~/.cserunner/workspace_list.json" and push a new configuration for current directory into the file 
+        2.2 If the file exists, check if there is a configuration for CURRENT DIRECTORY in the config file
+            2.2.1 config exists, return config 
+            2.2.2 config not exists, check if there is a configuration which is a parent of current directory
+            2.2.3 no avaiable config, thrown an error: "you have to init your workspace first"
+

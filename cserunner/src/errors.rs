@@ -85,3 +85,18 @@ impl Display for WorkspaceAlreadyExists {
 impl Error for WorkspaceAlreadyExists  {
     
 }
+
+#[derive(Debug)]
+pub enum ConfigError {
+    InvalidDirectory(String)
+}
+
+impl Display for ConfigError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ConfigError::InvalidDirectory(dir) => write!(f, "Error: diectory: \"{}\" is not a valid path.", dir),
+        }
+    }
+}
+
+impl Error for ConfigError {}
