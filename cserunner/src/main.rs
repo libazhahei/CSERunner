@@ -1,7 +1,7 @@
 mod errors;
 mod init;
 mod check;
-use std::{borrow::Cow, env, error::Error, fs, io, rc::Rc};
+use std::{borrow::Cow, env, error::Error, fs, io, process::exit, rc::Rc};
 use check::{config_file_check, root_dir_check};
 use init::{get_workspace_config, init_workspace};
 use serde::{Deserialize, Serialize};
@@ -115,20 +115,28 @@ pub struct CommandLine {
     config: Option<String>,
 }
 
-
+// Set panic handler
 
 fn main() {
     // Checking 
+    std::panic::set_hook(Box::new(|panic_info| {
+        let location = panic_info.location().unwrap();
+        let message = panic_info.payload().downcast_ref::<&str>().unwrap();
+        eprintln!("Panic occurred at {}:{}: {}", location.file(), location.line(), message);
+        exit(1);
+    }));
     root_dir_check().unwrap();
-    config_file_check().unwrap();
-
     let commandline = Rc::new(CommandLine::parse());
     // if commandline is init 
     if commandline.command == "init" {
-        init_workspace(&commandline.config);
-        return;
+        // Exit with 1 if error 
+        if let Err(_) = init_workspace(&commandline.config) {
+            exit(1);
+        } 
+        exit(0);
     }
+    config_file_check().unwrap();
     let current_dir = env::current_dir().unwrap();
-    let config = get_workspace_config(&current_dir).expect("msg");
+    let config = get_workspace_config(&current_dir).expect("You have to init the workspace first. Run `cserun init` to initialize the workspace.");
 
 }

@@ -28,9 +28,9 @@ pub fn config_file_check() -> Result<(), Box<dyn Error>> {
         let list = WorkspaceList::new();
         // Create a workspace_list.json file. 
         serde_json::to_writer(fs::File::create(workspace_list_path.clone())?, &list)?;
-        println!("Created a configuration file for cserunner in location: {:?}", &workspace_list_path);
+        // println!("Created a configuration file for cserunner in location: {:?}", &workspace_list_path);
     } else {
-        println!("Configuration file in location: {:?}", &workspace_list_path);
+        // println!("Configuration file in location: {:?}", &workspace_list_path);
     }
     Ok(())
 }
